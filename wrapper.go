@@ -78,11 +78,9 @@ func (wrapper *TextWrapper) AddText(text string) {
 		return
 	}
 
-	for i := 0; i < len(text); {
-		if bytesConsumedFromText := wrapper.parseContiguousWhitespaceIntoStringBuilder(text[i:]); bytesConsumedFromText > 0 {
-			i += bytesConsumedFromText
-		} else {
-			bytesConsumedFromText := wrapper.parserWordIntoStringBuffer(text[i:])
+	for i, bytesConsumedFromText := 0, 0; i < len(text); i += bytesConsumedFromText {
+		if bytesConsumedFromText = wrapper.parseContiguousWhitespaceIntoStringBuilder(text[i:]); bytesConsumedFromText == 0 {
+			bytesConsumedFromText = wrapper.parserWordIntoStringBuffer(text[i:])
 		}
 	}
 }
@@ -124,12 +122,12 @@ func (wrapper *TextWrapper) parseContiguousWhitespaceIntoStringBuilder(text stri
 	numberOfContiguousWhitespaceRunes := len(contiguousWhitespaceRunes)
 
 	for i := 0; i < numberOfContiguousWhitespaceRunes && wrapper.lengthOfCurrentLine < wrapper.maximumLineLength; i++ {
-		wrapper.builder.WriteByte(' ')
+		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
 		wrapper.lengthOfCurrentLine++
 	}
 
 	if wrapper.lengthOfCurrentLine == wrapper.maximumLineLength {
-		wrapper.builder.WriteByte('\n')
+		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
 		wrapper.lengthOfCurrentLine = 0
 	}
 
@@ -138,13 +136,23 @@ func (wrapper *TextWrapper) parseContiguousWhitespaceIntoStringBuilder(text stri
 
 func (wrapper *TextWrapper) parserWordIntoStringBuffer(text string) (bytesConsumed int) {
 	countOfBytesInNextWord := 0
+
 	for _, nextRune := range text {
 		if unicode.IsSpace(nextRune) {
 			break
 		} else {
+			wrapper.builder.WriteRune(nextRune)
+			wrapper.lengthOfCurrentLine++
 			countOfBytesInNextWord += utf8.RuneLen(nextRune)
+
+			if wrapper.lengthOfCurrentLine == wrapper.maximumLineLength {
+				wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
+				wrapper.lengthOfCurrentLine = 0
+			}
 		}
 	}
+
+	return countOfBytesInNextWord
 }
 
 func extractContiguousWhitespaceRunesFrom(text string, translateLinebreaksToSpace bool, tabstopWidth int) (extractedWhitespaceRunes []rune, bytesConsumedFromText int) {
