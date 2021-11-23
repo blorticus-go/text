@@ -122,7 +122,7 @@ func (wrapper *TextWrapper) parseContiguousWhitespaceIntoStringBuilder(text stri
 	numberOfContiguousWhitespaceRunes := len(contiguousWhitespaceRunes)
 
 	for i := 0; i < numberOfContiguousWhitespaceRunes && wrapper.lengthOfCurrentLine < wrapper.maximumLineLength; i++ {
-		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
+		wrapper.builder.WriteRune(' ')
 		wrapper.lengthOfCurrentLine++
 	}
 
@@ -135,24 +135,50 @@ func (wrapper *TextWrapper) parseContiguousWhitespaceIntoStringBuilder(text stri
 }
 
 func (wrapper *TextWrapper) parserWordIntoStringBuffer(text string) (bytesConsumed int) {
-	countOfBytesInNextWord := 0
+	runesInNextWord, textBufOffsetAtEndOfEachRune := extractNextWordRunesFrom(text)
 
-	for _, nextRune := range text {
-		if unicode.IsSpace(nextRune) {
-			break
-		} else {
-			wrapper.builder.WriteRune(nextRune)
-			wrapper.lengthOfCurrentLine++
-			countOfBytesInNextWord += utf8.RuneLen(nextRune)
+	remainingColumnsInCurrentRow := wrapper.maximumLineLength - wrapper.lengthOfCurrentLine
 
-			if wrapper.lengthOfCurrentLine == wrapper.maximumLineLength {
-				wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
-				wrapper.lengthOfCurrentLine = 0
-			}
-		}
+	switch countOfRunesInNextWord := len(runesInNextWord); {
+	case countOfRunesInNextWord == 0:
+		return 0
+
+	case countOfRunesInNextWord < remainingColumnsInCurrentRow:
+		offsetInTextBufAtEndOfWord := textBufOffsetAtEndOfEachRune[len(textBufOffsetAtEndOfEachRune)-1]
+		wrapper.builder.WriteString(string(text[:offsetInTextBufAtEndOfWord]))
+		return offsetInTextBufAtEndOfWord + 1
+
+	case countOfRunesInNextWord == remainingColumnsInCurrentRow:
+		offsetInTextBufAtEndOfWord := textBufOffsetAtEndOfEachRune[len(textBufOffsetAtEndOfEachRune)-1]
+		wrapper.builder.WriteString(string(text[:offsetInTextBufAtEndOfWord]))
+		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
+		return offsetInTextBufAtEndOfWord + 1
+
+	default:
+		return 0
 	}
 
-	return countOfBytesInNextWord
+}
+
+func extractNextWordRunesFrom(text string) (runesInNextWord []rune, indexOfLastByteInTextBufForEachRune []int) {
+	runesInNextWord = make([]rune, 0, 10)
+	indexOfLastByteInTextBufForEachRune = make([]int, 0, 10)
+
+	if len(text) == 0 {
+		return runesInNextWord, indexOfLastByteInTextBufForEachRune
+	}
+
+	textBufIndexAtStartOfNextRune := 0
+	for {
+		nextRune, runeLengthInBytes := utf8.DecodeRuneInString(text[textBufIndexAtStartOfNextRune:])
+		if unicode.IsSpace(nextRune) {
+			return runesInNextWord, indexOfLastByteInTextBufForEachRune
+		}
+
+		runesInNextWord = append(runesInNextWord, nextRune)
+		indexOfLastByteInTextBufForEachRune = append(indexOfLastByteInTextBufForEachRune, textBufIndexAtStartOfNextRune+runeLengthInBytes-1)
+		textBufIndexAtStartOfNextRune++
+	}
 }
 
 func extractContiguousWhitespaceRunesFrom(text string, translateLinebreaksToSpace bool, tabstopWidth int) (extractedWhitespaceRunes []rune, bytesConsumedFromText int) {
