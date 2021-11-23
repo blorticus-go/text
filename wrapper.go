@@ -134,29 +134,64 @@ func (wrapper *TextWrapper) parseContiguousWhitespaceIntoStringBuilder(text stri
 	return bytesConsumedFromTextForWhitespaceRunes
 }
 
+type runeWordTracker struct {
+	sourceStringTextForRunes                   string
+	runes                                      []rune
+	countOfUnprocessedRunes                    int
+	byteOffsetInTextAtTheEndOfEachRune         []int
+	byteOffsetInTextAtStartOfNextUnwrittenRune int
+}
+
 func (wrapper *TextWrapper) parserWordIntoStringBuffer(text string) (bytesConsumed int) {
 	runesInNextWord, textBufOffsetAtEndOfEachRune := extractNextWordRunesFrom(text)
 
-	remainingColumnsInCurrentRow := wrapper.maximumLineLength - wrapper.lengthOfCurrentLine
-
-	switch countOfRunesInNextWord := len(runesInNextWord); {
-	case countOfRunesInNextWord == 0:
-		return 0
-
-	case countOfRunesInNextWord < remainingColumnsInCurrentRow:
-		offsetInTextBufAtEndOfWord := textBufOffsetAtEndOfEachRune[len(textBufOffsetAtEndOfEachRune)-1]
-		wrapper.builder.WriteString(string(text[:offsetInTextBufAtEndOfWord]))
-		return offsetInTextBufAtEndOfWord + 1
-
-	case countOfRunesInNextWord == remainingColumnsInCurrentRow:
-		offsetInTextBufAtEndOfWord := textBufOffsetAtEndOfEachRune[len(textBufOffsetAtEndOfEachRune)-1]
-		wrapper.builder.WriteString(string(text[:offsetInTextBufAtEndOfWord]))
-		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
-		return offsetInTextBufAtEndOfWord + 1
-
-	default:
-		return 0
+	tracker := &runeWordTracker{
+		sourceStringTextForRunes:                   text,
+		runes:                                      runesInNextWord,
+		countOfUnprocessedRunes:                    len(runesInNextWord),
+		byteOffsetInTextAtTheEndOfEachRune:         textBufOffsetAtEndOfEachRune,
+		byteOffsetInTextAtStartOfNextUnwrittenRune: 0,
 	}
+
+	wrapper.parseRunesFromTextIntoStringBuffer(tracker)
+
+	return len(textBufOffsetAtEndOfEachRune)
+}
+
+func (wrapper *TextWrapper) parseRunesFromTextIntoStringBuffer(tracker *runeWordTracker) {
+	//remainingColumnsInCurrentRow := wrapper.maximumLineLength - wrapper.lengthOfCurrentLine
+
+	switch remainingColumnsInCurrentRow := wrapper.maximumLineLength - wrapper.lengthOfCurrentLine; {
+	case remainingColumnsInCurrentRow == 0:
+		return
+
+	case remainingColumnsInCurrentRow > tracker.countOfUnprocessedRunes:
+		indexOfLastByte := tracker.byteOffsetInTextAtTheEndOfEachRune[len(tracker.byteOffsetInTextAtTheEndOfEachRune)-1]
+		wrapper.builder.WriteString(string(tracker.sourceStringTextForRunes[tracker.byteOffsetInTextAtStartOfNextUnwrittenRune:indexOfLastByte]))
+	case remainingColumnsInCurrentRow == tracker.countOfUnprocessedRunes:
+	default:
+	}
+
+	// case tracker. countOfRunesInNextWord == 0:
+	// 	return 0
+
+	// case countOfRunesInNextWord < remainingColumnsInCurrentRow:
+	// 	offsetInTextBufAtEndOfWord := textBufOffsetAtEndOfEachRune[len(textBufOffsetAtEndOfEachRune)-1]
+	// 	wrapper.builder.WriteString(string(text[:offsetInTextBufAtEndOfWord]))
+	// 	return offsetInTextBufAtEndOfWord + 1
+
+	// case countOfRunesInNextWord == remainingColumnsInCurrentRow:
+	// 	offsetInTextBufAtEndOfWord := textBufOffsetAtEndOfEachRune[len(textBufOffsetAtEndOfEachRune)-1]
+	// 	wrapper.builder.WriteString(string(text[:offsetInTextBufAtEndOfWord]))
+	// 	wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
+	// 	return offsetInTextBufAtEndOfWord + 1
+
+	// default:
+	// 	if (countOfRunesInNextWord) < wrapper.maximumLineLength {
+	// 		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
+
+	// 	}
+	// }
 
 }
 
