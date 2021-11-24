@@ -159,40 +159,37 @@ func (wrapper *TextWrapper) parserWordIntoStringBuffer(text string) (bytesConsum
 }
 
 func (wrapper *TextWrapper) parseRunesFromTextIntoStringBuffer(tracker *runeWordTracker) {
-	//remainingColumnsInCurrentRow := wrapper.maximumLineLength - wrapper.lengthOfCurrentLine
-
 	switch remainingColumnsInCurrentRow := wrapper.maximumLineLength - wrapper.lengthOfCurrentLine; {
 	case remainingColumnsInCurrentRow == 0:
-		return
 
 	case remainingColumnsInCurrentRow > tracker.countOfUnprocessedRunes:
+		indexOfFirstByte := tracker.byteOffsetInTextAtStartOfNextUnwrittenRune
 		indexOfLastByte := tracker.byteOffsetInTextAtTheEndOfEachRune[len(tracker.byteOffsetInTextAtTheEndOfEachRune)-1]
-		wrapper.builder.WriteString(string(tracker.sourceStringTextForRunes[tracker.byteOffsetInTextAtStartOfNextUnwrittenRune:indexOfLastByte]))
+		wrapper.builder.WriteString(string(tracker.sourceStringTextForRunes[indexOfFirstByte : indexOfLastByte+1]))
+		wrapper.lengthOfCurrentLine += tracker.countOfUnprocessedRunes
+
 	case remainingColumnsInCurrentRow == tracker.countOfUnprocessedRunes:
-	default:
+		indexOfFirstByte := tracker.byteOffsetInTextAtStartOfNextUnwrittenRune
+		indexOfLastByte := tracker.byteOffsetInTextAtTheEndOfEachRune[len(tracker.byteOffsetInTextAtTheEndOfEachRune)-1]
+		wrapper.builder.WriteString(string(tracker.sourceStringTextForRunes[indexOfFirstByte : indexOfLastByte+1]))
+		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
+		wrapper.lengthOfCurrentLine = wrapper.maximumLineLength
+
+	case wrapper.maximumLineLength > tracker.countOfUnprocessedRunes:
+		indexOfFirstByte := tracker.byteOffsetInTextAtStartOfNextUnwrittenRune
+		indexOfLastByteInThisLine := indexOfFirstByte + remainingColumnsInCurrentRow
+		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
+		wrapper.builder.WriteString(string(tracker.sourceStringTextForRunes[indexOfFirstByte : indexOfLastByteInThisLine+1]))
+		wrapper.lengthOfCurrentLine = tracker.countOfUnprocessedRunes
+		//tracker.byteOffsetInTextAtStartOfNextUnwrittenRune += remainingColumnsInCurrentRow
+		//tracker.countOfUnprocessedRunes -= remainingColumnsInCurrentRow
+		//wrapper.parseRunesFromTextIntoStringBuffer(tracker)
+
+	case wrapper.maximumLineLength == tracker.countOfUnprocessedRunes:
+		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
+		wrapper.lengthOfCurrentLine = wrapper.maximumLineLength
+		wrapper.parseRunesFromTextIntoStringBuffer(tracker)
 	}
-
-	// case tracker. countOfRunesInNextWord == 0:
-	// 	return 0
-
-	// case countOfRunesInNextWord < remainingColumnsInCurrentRow:
-	// 	offsetInTextBufAtEndOfWord := textBufOffsetAtEndOfEachRune[len(textBufOffsetAtEndOfEachRune)-1]
-	// 	wrapper.builder.WriteString(string(text[:offsetInTextBufAtEndOfWord]))
-	// 	return offsetInTextBufAtEndOfWord + 1
-
-	// case countOfRunesInNextWord == remainingColumnsInCurrentRow:
-	// 	offsetInTextBufAtEndOfWord := textBufOffsetAtEndOfEachRune[len(textBufOffsetAtEndOfEachRune)-1]
-	// 	wrapper.builder.WriteString(string(text[:offsetInTextBufAtEndOfWord]))
-	// 	wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
-	// 	return offsetInTextBufAtEndOfWord + 1
-
-	// default:
-	// 	if (countOfRunesInNextWord) < wrapper.maximumLineLength {
-	// 		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
-
-	// 	}
-	// }
-
 }
 
 func extractNextWordRunesFrom(text string) (runesInNextWord []rune, indexOfLastByteInTextBufForEachRune []int) {
