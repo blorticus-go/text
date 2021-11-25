@@ -155,7 +155,9 @@ func (wrapper *TextWrapper) parserWordIntoStringBuffer(text string) (bytesConsum
 
 	wrapper.parseRunesFromTextIntoStringBuffer(tracker)
 
-	return len(textBufOffsetAtEndOfEachRune)
+	bytesConsumed = textBufOffsetAtEndOfEachRune[len(textBufOffsetAtEndOfEachRune)-1] + 1
+
+	return bytesConsumed
 }
 
 func (wrapper *TextWrapper) parseRunesFromTextIntoStringBuffer(tracker *runeWordTracker) {
@@ -200,8 +202,7 @@ func extractNextWordRunesFrom(text string) (runesInNextWord []rune, indexOfLastB
 		return runesInNextWord, indexOfLastByteInTextBufForEachRune
 	}
 
-	textBufIndexAtStartOfNextRune := 0
-	for {
+	for textBufIndexAtStartOfNextRune := 0; textBufIndexAtStartOfNextRune < len(text); {
 		nextRune, runeLengthInBytes := utf8.DecodeRuneInString(text[textBufIndexAtStartOfNextRune:])
 		if unicode.IsSpace(nextRune) {
 			return runesInNextWord, indexOfLastByteInTextBufForEachRune
@@ -209,8 +210,10 @@ func extractNextWordRunesFrom(text string) (runesInNextWord []rune, indexOfLastB
 
 		runesInNextWord = append(runesInNextWord, nextRune)
 		indexOfLastByteInTextBufForEachRune = append(indexOfLastByteInTextBufForEachRune, textBufIndexAtStartOfNextRune+runeLengthInBytes-1)
-		textBufIndexAtStartOfNextRune++
+		textBufIndexAtStartOfNextRune += runeLengthInBytes
 	}
+
+	return runesInNextWord, indexOfLastByteInTextBufForEachRune
 }
 
 func extractContiguousWhitespaceRunesFrom(text string, translateLinebreaksToSpace bool, tabstopWidth int) (extractedWhitespaceRunes []rune, bytesConsumedFromText int) {
