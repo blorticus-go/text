@@ -154,6 +154,11 @@ func (wrapper *TextWrapper) parseRunesFromTextIntoStringBuffer(tracker *runeWord
 	switch remainingColumnsInCurrentRow := wrapper.maximumLineLength - wrapper.lengthOfCurrentLine; {
 	case remainingColumnsInCurrentRow == 0:
 
+	case remainingColumnsInCurrentRow < len(wrapper.whitespacesRuneBuffer)+len(tracker.runes):
+		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
+		wrapper.emptyWhitespaceRuneBuffer()
+		wrapper.parseRunesFromTextIntoStringBuffer(tracker)
+
 	case remainingColumnsInCurrentRow > tracker.countOfUnprocessedRunes:
 		indexOfFirstByte := tracker.byteOffsetInTextAtStartOfNextUnwrittenRune
 		indexOfLastByte := tracker.byteOffsetInTextAtTheEndOfEachRune[len(tracker.byteOffsetInTextAtTheEndOfEachRune)-1]
