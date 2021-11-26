@@ -156,12 +156,14 @@ func (wrapper *TextWrapper) parseRunesFromTextIntoStringBuffer(tracker *runeWord
 
 	case remainingColumnsInCurrentRow < len(wrapper.whitespacesRuneBuffer)+len(tracker.runes):
 		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
+		wrapper.lengthOfCurrentLine = 0
 		wrapper.emptyWhitespaceRuneBuffer()
 		wrapper.parseRunesFromTextIntoStringBuffer(tracker)
 
 	case remainingColumnsInCurrentRow > tracker.countOfUnprocessedRunes:
 		indexOfFirstByte := tracker.byteOffsetInTextAtStartOfNextUnwrittenRune
 		indexOfLastByte := tracker.byteOffsetInTextAtTheEndOfEachRune[len(tracker.byteOffsetInTextAtTheEndOfEachRune)-1]
+		wrapper.lengthOfCurrentLine += wrapper.writeWhitespaceBufferIntoBuilderAndClearBuffer()
 		wrapper.builder.WriteString(string(tracker.sourceStringTextForRunes[indexOfFirstByte : indexOfLastByte+1]))
 		wrapper.lengthOfCurrentLine += tracker.countOfUnprocessedRunes
 
@@ -182,6 +184,17 @@ func (wrapper *TextWrapper) parseRunesFromTextIntoStringBuffer(tracker *runeWord
 		wrapper.insertRowSeparatorIntoBuilderAndMoveToNextLine()
 		wrapper.parseRunesFromTextIntoStringBuffer(tracker)
 	}
+}
+
+func (wrapper *TextWrapper) writeWhitespaceBufferIntoBuilderAndClearBuffer() (numberOfRunesWritten int) {
+	numberOfRunesWritten = len(wrapper.whitespacesRuneBuffer)
+	for _, whitespaceRune := range wrapper.whitespacesRuneBuffer {
+		wrapper.builder.WriteRune(rune(whitespaceRune))
+	}
+
+	wrapper.emptyWhitespaceRuneBuffer()
+
+	return numberOfRunesWritten
 }
 
 func extractNextWordRunesFrom(text string) (runesInNextWord []rune, indexOfLastByteInTextBufForEachRune []int) {
@@ -207,8 +220,6 @@ func extractNextWordRunesFrom(text string) (runesInNextWord []rune, indexOfLastB
 }
 
 func (wrapper *TextWrapper) parseContiguousWhitespaceIntoStringBuilder(text string) (bytesConsumed int) {
-	wrapper.emptyWhitespaceRuneBuffer()
-
 	bytesConsumedFromTextForWhitespaceRunes := wrapper.extractIntoWhitespaceBufferContiguousWhitespaceRunesFrom(text, wrapper.translateLinebreaksToSpace, wrapper.tabstopWidth)
 	numberOfContiguousWhitespaceRunes := len(wrapper.whitespacesRuneBuffer)
 

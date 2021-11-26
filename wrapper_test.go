@@ -56,8 +56,8 @@ func TestTextWrapString(t *testing.T) {
 			unwrappedString: unwrappedString01,
 			rowLength:       30,
 			expectedWrappedString: "" +
-				"This is   a simple      bit of\n" +
-				"text including non-latin Ḃ\n" +
+				"This is   a simple       bit\n" +
+				"of text including non-latin Ḃ\n" +
 				"characters Ϟ",
 		},
 	}
