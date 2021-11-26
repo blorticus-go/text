@@ -17,6 +17,7 @@ type TextWrapper struct {
 	translateLinebreaksToSpace bool
 	tabstopWidth               int
 	rowSeparatorRune           rune
+	whitespacesRuneBuffer      []rune
 }
 
 // NewTextWrapper creates a new TextWrapper.  It sets the column width (i.e., the maximum line length) to
@@ -31,6 +32,7 @@ func NewTextWrapper() *TextWrapper {
 		translateLinebreaksToSpace: true,
 		tabstopWidth:               4,
 		rowSeparatorRune:           '\n',
+		whitespacesRuneBuffer:      make([]rune, 0, 10),
 	}
 }
 
@@ -117,21 +119,9 @@ func (wrapper *TextWrapper) WrapFromReader(reader io.Reader) (string, error) {
 	}
 }
 
-func (wrapper *TextWrapper) parseContiguousWhitespaceIntoStringBuilder(text string) (bytesConsumed int) {
-	contiguousWhitespaceRunes, bytesConsumedFromTextForWhitespaceRunes := extractContiguousWhitespaceRunesFrom(text, wrapper.translateLinebreaksToSpace, wrapper.tabstopWidth)
-	numberOfContiguousWhitespaceRunes := len(contiguousWhitespaceRunes)
-
-	for i := 0; i < numberOfContiguousWhitespaceRunes && wrapper.lengthOfCurrentLine < wrapper.maximumLineLength; i++ {
-		wrapper.builder.WriteRune(' ')
-		wrapper.lengthOfCurrentLine++
-	}
-
-	if wrapper.lengthOfCurrentLine == wrapper.maximumLineLength {
-		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
-		wrapper.lengthOfCurrentLine = 0
-	}
-
-	return bytesConsumedFromTextForWhitespaceRunes
+func (wrapper *TextWrapper) insertRowSeparatorIntoBuilderAndMoveToNextLine() {
+	wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
+	wrapper.lengthOfCurrentLine = 0
 }
 
 type runeWordTracker struct {
@@ -174,8 +164,7 @@ func (wrapper *TextWrapper) parseRunesFromTextIntoStringBuffer(tracker *runeWord
 		indexOfFirstByte := tracker.byteOffsetInTextAtStartOfNextUnwrittenRune
 		indexOfLastByte := tracker.byteOffsetInTextAtTheEndOfEachRune[len(tracker.byteOffsetInTextAtTheEndOfEachRune)-1]
 		wrapper.builder.WriteString(string(tracker.sourceStringTextForRunes[indexOfFirstByte : indexOfLastByte+1]))
-		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
-		wrapper.lengthOfCurrentLine = wrapper.maximumLineLength
+		wrapper.insertRowSeparatorIntoBuilderAndMoveToNextLine()
 
 	case wrapper.maximumLineLength > tracker.countOfUnprocessedRunes:
 		indexOfFirstByte := tracker.byteOffsetInTextAtStartOfNextUnwrittenRune
@@ -183,13 +172,9 @@ func (wrapper *TextWrapper) parseRunesFromTextIntoStringBuffer(tracker *runeWord
 		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
 		wrapper.builder.WriteString(string(tracker.sourceStringTextForRunes[indexOfFirstByte : indexOfLastByteInThisLine+1]))
 		wrapper.lengthOfCurrentLine = tracker.countOfUnprocessedRunes
-		//tracker.byteOffsetInTextAtStartOfNextUnwrittenRune += remainingColumnsInCurrentRow
-		//tracker.countOfUnprocessedRunes -= remainingColumnsInCurrentRow
-		//wrapper.parseRunesFromTextIntoStringBuffer(tracker)
 
 	case wrapper.maximumLineLength == tracker.countOfUnprocessedRunes:
-		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
-		wrapper.lengthOfCurrentLine = wrapper.maximumLineLength
+		wrapper.insertRowSeparatorIntoBuilderAndMoveToNextLine()
 		wrapper.parseRunesFromTextIntoStringBuffer(tracker)
 	}
 }
@@ -216,37 +201,53 @@ func extractNextWordRunesFrom(text string) (runesInNextWord []rune, indexOfLastB
 	return runesInNextWord, indexOfLastByteInTextBufForEachRune
 }
 
-func extractContiguousWhitespaceRunesFrom(text string, translateLinebreaksToSpace bool, tabstopWidth int) (extractedWhitespaceRunes []rune, bytesConsumedFromText int) {
-	extractedWhitespaceRunes = make([]rune, 0, 3)
+func (wrapper *TextWrapper) parseContiguousWhitespaceIntoStringBuilder(text string) (bytesConsumed int) {
+	wrapper.emptyWhitespaceRuneBuffer()
+
+	bytesConsumedFromTextForWhitespaceRunes := wrapper.extractIntoWhitespaceBufferContiguousWhitespaceRunesFrom(text, wrapper.translateLinebreaksToSpace, wrapper.tabstopWidth)
+	numberOfContiguousWhitespaceRunes := len(wrapper.whitespacesRuneBuffer)
+
+	if wrapper.lengthOfCurrentLine+numberOfContiguousWhitespaceRunes >= wrapper.maximumLineLength {
+		wrapper.insertRowSeparatorIntoBuilderAndMoveToNextLine()
+		wrapper.emptyWhitespaceRuneBuffer()
+		return bytesConsumedFromTextForWhitespaceRunes
+	}
+
+	return bytesConsumedFromTextForWhitespaceRunes
+}
+
+func (wrapper *TextWrapper) emptyWhitespaceRuneBuffer() {
+	wrapper.whitespacesRuneBuffer = wrapper.whitespacesRuneBuffer[:0]
+}
+
+func (wrapper *TextWrapper) extractIntoWhitespaceBufferContiguousWhitespaceRunesFrom(text string, translateLinebreaksToSpace bool, tabstopWidth int) (bytesConsumedFromText int) {
 	bytesConsumedFromText = 0
 
 	for _, nextRune := range text {
 		switch nextRune {
-		case '\n':
-			fallthrough
-		case '\r':
+		case '\n', '\r':
 			if translateLinebreaksToSpace {
-				extractedWhitespaceRunes = append(extractedWhitespaceRunes, ' ')
-				bytesConsumedFromText++
+				wrapper.whitespacesRuneBuffer = append(wrapper.whitespacesRuneBuffer, ' ')
 			} else {
-				return extractedWhitespaceRunes, bytesConsumedFromText
+				wrapper.whitespacesRuneBuffer = append(wrapper.whitespacesRuneBuffer, nextRune)
 			}
+			bytesConsumedFromText++
 
 		case '\t':
 			for i := 0; i < tabstopWidth; i++ {
-				extractedWhitespaceRunes = append(extractedWhitespaceRunes, ' ')
+				wrapper.whitespacesRuneBuffer = append(wrapper.whitespacesRuneBuffer, ' ')
 			}
 			bytesConsumedFromText++
 
 		default:
 			if unicode.IsSpace(nextRune) {
-				extractedWhitespaceRunes = append(extractedWhitespaceRunes, nextRune)
+				wrapper.whitespacesRuneBuffer = append(wrapper.whitespacesRuneBuffer, nextRune)
 				bytesConsumedFromText += utf8.RuneLen(nextRune)
 			} else {
-				return extractedWhitespaceRunes, bytesConsumedFromText
+				return bytesConsumedFromText
 			}
 		}
 	}
 
-	return extractedWhitespaceRunes, bytesConsumedFromText
+	return bytesConsumedFromText
 }
