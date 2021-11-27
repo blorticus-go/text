@@ -12,7 +12,7 @@ import (
 type TextWrapper struct {
 	builder                    strings.Builder
 	lengthOfCurrentLine        int
-	maximumLineLength          int
+	runeColumnsPerRow          int
 	newLineIndentText          []rune
 	translateLinebreaksToSpace bool
 	tabstopWidth               int
@@ -27,7 +27,7 @@ func NewTextWrapper() *TextWrapper {
 	return &TextWrapper{
 		builder:                    strings.Builder{},
 		lengthOfCurrentLine:        0,
-		maximumLineLength:          80,
+		runeColumnsPerRow:          80,
 		newLineIndentText:          []rune{},
 		translateLinebreaksToSpace: true,
 		tabstopWidth:               4,
@@ -39,7 +39,10 @@ func NewTextWrapper() *TextWrapper {
 // SetColumnWidth changes the maximum line length.  This length does not include the trailing
 // row separator.
 func (wrapper *TextWrapper) SetColumnWidth(columnsPerLine uint) *TextWrapper {
-	wrapper.maximumLineLength = int(columnsPerLine)
+	wrapper.runeColumnsPerRow = int(columnsPerLine)
+	if wrapper.runeColumnsPerRow <= len(wrapper.newLineIndentText) {
+		panic("indent text length non-sensically equal to or longer than column width")
+	}
 	return wrapper
 }
 
@@ -47,12 +50,16 @@ func (wrapper *TextWrapper) SetColumnWidth(columnsPerLine uint) *TextWrapper {
 // each line after a wrap operation.  It is not applied to the first line.
 func (wrapper *TextWrapper) SetIndentForEachCreatedRow(indentString string) *TextWrapper {
 	if indentString == "" {
-		wrapper.newLineIndentText = nil
+		wrapper.newLineIndentText = []rune{}
 	} else {
 		wrapper.newLineIndentText = make([]rune, 0, len(indentString))
 		for _, r := range indentString {
 			wrapper.newLineIndentText = append(wrapper.newLineIndentText, r)
 		}
+	}
+
+	if wrapper.runeColumnsPerRow <= len(wrapper.newLineIndentText) {
+		panic("indent text length non-sensically equal to or longer than column width")
 	}
 
 	return wrapper
@@ -76,7 +83,7 @@ func (wrapper *TextWrapper) SetTabstopWidth(spacesInTabstop uint) {
 // AddText adds text to an accumulating internal buffer.  Use AccumulatedWrappedText() to return the
 // rendered text after adding all desired string.
 func (wrapper *TextWrapper) AddText(text string) {
-	if wrapper.maximumLineLength == 0 {
+	if wrapper.runeColumnsPerRow == 0 {
 		wrapper.builder.WriteString(text)
 		return
 	}
@@ -99,6 +106,7 @@ func (wrapper *TextWrapper) AccumulatedWrappedText() string {
 func (wrapper *TextWrapper) Reset() {
 	wrapper.builder.Reset()
 	wrapper.emptyWhitespaceRuneBuffer()
+	wrapper.lengthOfCurrentLine = 0
 }
 
 // WrapString takes a string, treating it as complete UTF-8 text, and returns it wrapped.  It then
@@ -135,7 +143,10 @@ func (wrapper *TextWrapper) WrapFromReader(reader io.Reader) (string, error) {
 
 func (wrapper *TextWrapper) insertRowSeparatorIntoBuilderAndMoveToNextLine() {
 	wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
-	wrapper.lengthOfCurrentLine = 0
+	for _, indentRune := range wrapper.newLineIndentText {
+		wrapper.builder.WriteRune(indentRune)
+	}
+	wrapper.lengthOfCurrentLine = len(wrapper.newLineIndentText)
 }
 
 type runeWordTracker struct {
@@ -165,12 +176,11 @@ func (wrapper *TextWrapper) parserWordIntoStringBuffer(text string) (bytesConsum
 }
 
 func (wrapper *TextWrapper) parseRunesFromTextIntoStringBuffer(tracker *runeWordTracker) {
-	switch remainingColumnsInCurrentRow := wrapper.maximumLineLength - wrapper.lengthOfCurrentLine; {
+	switch remainingColumnsInCurrentRow := wrapper.runeColumnsPerRow - wrapper.lengthOfCurrentLine; {
 	case remainingColumnsInCurrentRow == 0:
 
 	case remainingColumnsInCurrentRow < len(wrapper.whitespacesRuneBuffer)+len(tracker.runes):
-		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
-		wrapper.lengthOfCurrentLine = 0
+		wrapper.insertRowSeparatorIntoBuilderAndMoveToNextLine()
 		wrapper.emptyWhitespaceRuneBuffer()
 		wrapper.parseRunesFromTextIntoStringBuffer(tracker)
 
@@ -187,14 +197,14 @@ func (wrapper *TextWrapper) parseRunesFromTextIntoStringBuffer(tracker *runeWord
 		wrapper.builder.WriteString(string(tracker.sourceStringTextForRunes[indexOfFirstByte : indexOfLastByte+1]))
 		wrapper.insertRowSeparatorIntoBuilderAndMoveToNextLine()
 
-	case wrapper.maximumLineLength > tracker.countOfUnprocessedRunes:
+	case wrapper.runeColumnsPerRow > tracker.countOfUnprocessedRunes:
 		indexOfFirstByte := tracker.byteOffsetInTextAtStartOfNextUnwrittenRune
 		indexOfLastByteInThisLine := indexOfFirstByte + remainingColumnsInCurrentRow
-		wrapper.builder.WriteRune(wrapper.rowSeparatorRune)
+		wrapper.insertRowSeparatorIntoBuilderAndMoveToNextLine()
 		wrapper.builder.WriteString(string(tracker.sourceStringTextForRunes[indexOfFirstByte : indexOfLastByteInThisLine+1]))
 		wrapper.lengthOfCurrentLine = tracker.countOfUnprocessedRunes
 
-	case wrapper.maximumLineLength == tracker.countOfUnprocessedRunes:
+	case wrapper.runeColumnsPerRow == tracker.countOfUnprocessedRunes:
 		wrapper.insertRowSeparatorIntoBuilderAndMoveToNextLine()
 		wrapper.parseRunesFromTextIntoStringBuffer(tracker)
 	}
@@ -237,7 +247,7 @@ func (wrapper *TextWrapper) parseContiguousWhitespaceIntoStringBuilder(text stri
 	bytesConsumedFromTextForWhitespaceRunes := wrapper.extractIntoWhitespaceBufferContiguousWhitespaceRunesFrom(text, wrapper.translateLinebreaksToSpace, wrapper.tabstopWidth)
 	numberOfContiguousWhitespaceRunes := len(wrapper.whitespacesRuneBuffer)
 
-	if wrapper.lengthOfCurrentLine+numberOfContiguousWhitespaceRunes >= wrapper.maximumLineLength {
+	if wrapper.lengthOfCurrentLine+numberOfContiguousWhitespaceRunes >= wrapper.runeColumnsPerRow {
 		wrapper.insertRowSeparatorIntoBuilderAndMoveToNextLine()
 		wrapper.emptyWhitespaceRuneBuffer()
 		return bytesConsumedFromTextForWhitespaceRunes

@@ -2,6 +2,7 @@ package textwrapper_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/blorticus-go/textwrapper"
@@ -12,16 +13,25 @@ type WrapStringTestCase struct {
 	rowLength              uint
 	indentString           string
 	unwrappedStrings       []string
+	useAReader             bool
 	expectedWrappedStrings []string
 }
 
 func (testCase *WrapStringTestCase) RunTest() error {
-	wrapper := textwrapper.NewTextWrapper()
-	wrapper.SetColumnWidth(testCase.rowLength)
+	wrapper := textwrapper.NewTextWrapper().
+		SetIndentForEachCreatedRow(testCase.indentString).
+		SetColumnWidth(testCase.rowLength)
 
 	for stringsIndex, unwrappedString := range testCase.unwrappedStrings {
 		expectedWrappedString := testCase.expectedWrappedStrings[stringsIndex]
-		wrappedString := wrapper.WrapString(unwrappedString)
+
+		var wrappedString string
+		if testCase.useAReader {
+			reader := strings.NewReader(unwrappedString)
+			wrappedString, _ = wrapper.WrapFromReader(reader)
+		} else {
+			wrappedString = wrapper.WrapString(unwrappedString)
+		}
 
 		if len(wrappedString) != len(expectedWrappedString) {
 			tcInfo := ""
@@ -51,10 +61,10 @@ func (testCase *WrapStringTestCase) RunTest() error {
 }
 
 var unwrappedString01 string = "This is   a simple \t\n bit of text including non-latin Ḃ\t   \n characters Ϟ"
+var unwrappedString02 string = "∀∁∂∃ ∄ ∅∆∇\t ∈∉∊  \r    ∋∌∍∎∏  +-  ∀∁∂∃ ∄ ∅∆∇\t ∈∉∊ ∀∁∂∃ ∄ ∅∆∇\t ∈∉∊     ∀∁∂∃ ∄ ∅∆∇\t ∈∉∊ \t∀∁∂∃ ∄ ∅∆∇\t ∈∉∊ "
 
-//var unwrappedString02 string = "  and N🁃⌘ a \r\n\r\n      \t    \rsecond string with additional length  "
-//var unwrappedString03 string = "12345 67890 abcde FGHIϤJKL\t mnoPQ      RST\n\r\tuvwXyZ "
-//var unwrappedString04 string = "∀∁∂∃ ∄ ∅∆∇\t ∈∉∊  \r    ∋∌∍∎∏  +-  ∀∁∂∃ ∄ ∅∆∇\t ∈∉∊ ∀∁∂∃ ∄ ∅∆∇\t ∈∉∊     ∀∁∂∃ ∄ ∅∆∇\t ∈∉∊ \t∀∁∂∃ ∄ ∅∆∇\t ∈∉∊ "
+//var unwrappedString03 string = "  and N🁃⌘ a \r\n\r\n      \t    \rsecond string with additional length  "
+//var unwrappedString04 string = "12345 67890 abcde FGHIϤJKL\t mnoPQ      RST\n\r\tuvwXyZ "
 
 func TestTextWrapString(t *testing.T) {
 	testCases := []*WrapStringTestCase{
@@ -70,13 +80,61 @@ func TestTextWrapString(t *testing.T) {
 		},
 		{
 			testName:         "WrapString() test 2",
+			unwrappedStrings: []string{unwrappedString02},
+			rowLength:        30,
+			expectedWrappedStrings: []string{"" +
+				"∀∁∂∃ ∄ ∅∆∇     ∈∉∊       ∋∌∍∎∏\n" +
+				"+-  ∀∁∂∃ ∄ ∅∆∇     ∈∉∊ ∀∁∂∃ ∄\n" +
+				"∅∆∇     ∈∉∊     ∀∁∂∃ ∄ ∅∆∇\n" +
+				"∈∉∊     ∀∁∂∃ ∄ ∅∆∇     ∈∉∊",
+			},
+		},
+		{
+			testName:         "WrapString() test 3",
 			unwrappedStrings: []string{unwrappedString01},
 			rowLength:        30,
 			indentString:     "    ",
 			expectedWrappedStrings: []string{"" +
 				"This is   a simple       bit\n" +
 				"    of text including\n" +
-				"    non-latin Ḃ characters Ϟ",
+				"    non-latin Ḃ\n" +
+				"    characters Ϟ",
+			},
+		},
+		{
+			testName:         "WrapString() test 4",
+			unwrappedStrings: []string{unwrappedString01},
+			rowLength:        30,
+			useAReader:       true,
+			expectedWrappedStrings: []string{"" +
+				"This is   a simple       bit\n" +
+				"of text including non-latin Ḃ\n" +
+				"characters Ϟ",
+			},
+		},
+		{
+			testName:         "WrapString() test 5",
+			unwrappedStrings: []string{unwrappedString02},
+			rowLength:        30,
+			useAReader:       true,
+			expectedWrappedStrings: []string{"" +
+				"∀∁∂∃ ∄ ∅∆∇     ∈∉∊       ∋∌∍∎∏\n" +
+				"+-  ∀∁∂∃ ∄ ∅∆∇     ∈∉∊ ∀∁∂∃ ∄\n" +
+				"∅∆∇     ∈∉∊     ∀∁∂∃ ∄ ∅∆∇\n" +
+				"∈∉∊     ∀∁∂∃ ∄ ∅∆∇     ∈∉∊",
+			},
+		},
+		{
+			testName:         "WrapString() test 6",
+			unwrappedStrings: []string{unwrappedString01},
+			rowLength:        30,
+			useAReader:       true,
+			indentString:     "    ",
+			expectedWrappedStrings: []string{"" +
+				"This is   a simple       bit\n" +
+				"    of text including\n" +
+				"    non-latin Ḃ\n" +
+				"    characters Ϟ",
 			},
 		},
 	}
