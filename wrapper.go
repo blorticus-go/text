@@ -28,7 +28,7 @@ func NewTextWrapper() *TextWrapper {
 		builder:                    strings.Builder{},
 		lengthOfCurrentLine:        0,
 		maximumLineLength:          80,
-		newLineIndentText:          nil,
+		newLineIndentText:          []rune{},
 		translateLinebreaksToSpace: true,
 		tabstopWidth:               4,
 		rowSeparatorRune:           '\n',
@@ -60,14 +60,15 @@ func (wrapper *TextWrapper) SetIndentForEachCreatedRow(indentString string) *Tex
 
 // DoNotTranslateNewlineSequencesToSingleSpace disables the default behavior, whereby a sequence
 // of linewrap characters (codepoint 10 or 13) in the source text are translated into a single
-// space.
+// space.  Instead, they are left as-is.
 func (wrapper *TextWrapper) DoNotTranslateNewlineSequencesToSingleSpace() *TextWrapper {
 	wrapper.translateLinebreaksToSpace = false
 	return wrapper
 }
 
 // SetTabstopWidth changes the number of spaces (codepoint 32) that a tab rune (codepoint 9) is
-// converted into.
+// converted into.  Tabs are always converted because, if they are not, then a wrapped string
+// may exceed its length limit when rendered, depending on how the renderer treats the tab.
 func (wrapper *TextWrapper) SetTabstopWidth(spacesInTabstop uint) {
 	wrapper.tabstopWidth = int(spacesInTabstop)
 }
@@ -93,16 +94,27 @@ func (wrapper *TextWrapper) AccumulatedWrappedText() string {
 	return wrapper.builder.String()
 }
 
-// WrapString takes a string, treating it as complete UTF-8 text, and returns it wrapped.
+// Reset clears the accumulated wrapped text buffer, and re-initializes the parser in order
+// to start processing a new string.
+func (wrapper *TextWrapper) Reset() {
+	wrapper.builder.Reset()
+	wrapper.emptyWhitespaceRuneBuffer()
+}
+
+// WrapString takes a string, treating it as complete UTF-8 text, and returns it wrapped.  It then
+// resets the wrapper.
 func (wrapper *TextWrapper) WrapString(text string) string {
 	wrapper.AddText(text)
-	return wrapper.AccumulatedWrappedText()
+	r := wrapper.AccumulatedWrappedText()
+	wrapper.Reset()
+	return r
 }
 
 // WrapFromReader reads from an io.Reader until it reaches the end of the input stream,
 // wrapping the input text, and returning the wrapped format.  A returned error would be
 // an error returned from the Reader.  io.EOF is not returned.  This method expects the
-// reader to return bytes on UTF-8 boundaries.
+// reader to return bytes on UTF-8 boundaries.  After returning the wrapped string,
+// the wrapper is reset.
 func (wrapper *TextWrapper) WrapFromReader(reader io.Reader) (string, error) {
 	readBuffer := make([]byte, 9000)
 	for {
@@ -114,7 +126,9 @@ func (wrapper *TextWrapper) WrapFromReader(reader io.Reader) (string, error) {
 		wrapper.AddText(string(readBuffer[:bytesRead]))
 
 		if err == io.EOF {
-			return wrapper.AccumulatedWrappedText(), nil
+			r := wrapper.AccumulatedWrappedText()
+			wrapper.Reset()
+			return r, nil
 		}
 	}
 }

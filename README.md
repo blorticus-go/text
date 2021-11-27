@@ -33,8 +33,8 @@ func main() {
     fh, err := os.Open(os.Args[1])
     panicIfError(err)
 
-    wrapper := textwrapper.NewTextWrapper()
-    formattedString, err := wrapper.ReformatFromReader(fh)
+    wrapper := textwrapper.NewTextWrapper().SetColumnWidth(50)
+    formattedString, err := wrapper.WrapFromReader(fh)
     panicIfError(err)
 
     fmt.Print(formattedString)
