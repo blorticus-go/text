@@ -62,70 +62,108 @@ func (testCase *WrapStringTestCase) RunTest() error {
 
 var unwrappedString01 string = "This is   a simple \t\n bit of text including non-latin Ḃ\t   \n characters Ϟ"
 var unwrappedString02 string = "∀∁∂∃ ∄ ∅∆∇\t ∈∉∊  \r    ∋∌∍∎∏  +-  ∀∁∂∃ ∄ ∅∆∇\t ∈∉∊ ∀∁∂∃ ∄ ∅∆∇\t ∈∉∊     ∀∁∂∃ ∄ ∅∆∇\t ∈∉∊ \t∀∁∂∃ ∄ ∅∆∇\t ∈∉∊ "
-
-//var unwrappedString03 string = "  and N🁃⌘ a \r\n\r\n      \t    \rsecond string with additional length  "
-//var unwrappedString04 string = "12345 67890 abcde FGHIϤJKL\t mnoPQ      RST\n\r\tuvwXyZ "
+var unwrappedString03 string = "This is a string 123456789012345678901234567890 and then ∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃ <-- that \t string is 42 characters long."
 
 func TestTextWrapString(t *testing.T) {
 	testCases := []*WrapStringTestCase{
+		// {
+		// 	testName:         "WrapString() test 1",
+		// 	unwrappedStrings: []string{unwrappedString01},
+		// 	rowLength:        30,
+		// 	expectedWrappedStrings: []string{"" +
+		// 		"This is   a simple       bit\n" +
+		// 		"of text including non-latin Ḃ\n" +
+		// 		"characters Ϟ",
+		// 	},
+		// },
+		// {
+		// 	testName:         "WrapString() test 2",
+		// 	unwrappedStrings: []string{unwrappedString02},
+		// 	rowLength:        30,
+		// 	expectedWrappedStrings: []string{"" +
+		// 		"∀∁∂∃ ∄ ∅∆∇     ∈∉∊       ∋∌∍∎∏\n" +
+		// 		"+-  ∀∁∂∃ ∄ ∅∆∇     ∈∉∊ ∀∁∂∃ ∄\n" +
+		// 		"∅∆∇     ∈∉∊     ∀∁∂∃ ∄ ∅∆∇\n" +
+		// 		"∈∉∊     ∀∁∂∃ ∄ ∅∆∇     ∈∉∊",
+		// 	},
+		// },
+		// {
+		// 	testName:         "WrapString() test 3",
+		// 	unwrappedStrings: []string{unwrappedString01},
+		// 	rowLength:        30,
+		// 	indentString:     "    ",
+		// 	expectedWrappedStrings: []string{"" +
+		// 		"This is   a simple       bit\n" +
+		// 		"    of text including\n" +
+		// 		"    non-latin Ḃ\n" +
+		// 		"    characters Ϟ",
+		// 	},
+		// },
+		// {
+		// 	testName:         "WrapString() test 4",
+		// 	unwrappedStrings: []string{unwrappedString01},
+		// 	rowLength:        30,
+		// 	useAReader:       true,
+		// 	expectedWrappedStrings: []string{"" +
+		// 		"This is   a simple       bit\n" +
+		// 		"of text including non-latin Ḃ\n" +
+		// 		"characters Ϟ",
+		// 	},
+		// },
+		// {
+		// 	testName:         "WrapString() test 5",
+		// 	unwrappedStrings: []string{unwrappedString02},
+		// 	rowLength:        30,
+		// 	useAReader:       true,
+		// 	expectedWrappedStrings: []string{"" +
+		// 		"∀∁∂∃ ∄ ∅∆∇     ∈∉∊       ∋∌∍∎∏\n" +
+		// 		"+-  ∀∁∂∃ ∄ ∅∆∇     ∈∉∊ ∀∁∂∃ ∄\n" +
+		// 		"∅∆∇     ∈∉∊     ∀∁∂∃ ∄ ∅∆∇\n" +
+		// 		"∈∉∊     ∀∁∂∃ ∄ ∅∆∇     ∈∉∊",
+		// 	},
+		// },
+		// {
+		// 	testName:         "WrapString() test 6",
+		// 	unwrappedStrings: []string{unwrappedString01, unwrappedString02},
+		// 	rowLength:        30,
+		// 	expectedWrappedStrings: []string{"" +
+		// 		"This is   a simple       bit\n" +
+		// 		"of text including non-latin Ḃ\n" +
+		// 		"characters Ϟ", "" +
+
+		// 		"∀∁∂∃ ∄ ∅∆∇     ∈∉∊       ∋∌∍∎∏\n" +
+		// 		"+-  ∀∁∂∃ ∄ ∅∆∇     ∈∉∊ ∀∁∂∃ ∄\n" +
+		// 		"∅∆∇     ∈∉∊     ∀∁∂∃ ∄ ∅∆∇\n" +
+		// 		"∈∉∊     ∀∁∂∃ ∄ ∅∆∇     ∈∉∊",
+		// 	},
+		// },
 		{
-			testName:         "WrapString() test 1",
-			unwrappedStrings: []string{unwrappedString01},
+			testName:         "WrapString() test 7",
+			unwrappedStrings: []string{unwrappedString03},
 			rowLength:        30,
 			expectedWrappedStrings: []string{"" +
-				"This is   a simple       bit\n" +
-				"of text including non-latin Ḃ\n" +
-				"characters Ϟ",
+				"This is a string\n" +
+				"123456789012345678901234567890\n" +
+				"and then ∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀\n" +
+				"∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃ <--\n" +
+				"that      string is 42\n" +
+				"characters long and\n" +
+				"12345678901234567890.",
 			},
 		},
+	}
+
+	for _, testCase := range testCases {
+		if err := testCase.RunTest(); err != nil {
+			t.Error(err.Error())
+		}
+	}
+}
+
+func TestWrapReader(t *testing.T) {
+	testCases := []*WrapStringTestCase{
 		{
-			testName:         "WrapString() test 2",
-			unwrappedStrings: []string{unwrappedString02},
-			rowLength:        30,
-			expectedWrappedStrings: []string{"" +
-				"∀∁∂∃ ∄ ∅∆∇     ∈∉∊       ∋∌∍∎∏\n" +
-				"+-  ∀∁∂∃ ∄ ∅∆∇     ∈∉∊ ∀∁∂∃ ∄\n" +
-				"∅∆∇     ∈∉∊     ∀∁∂∃ ∄ ∅∆∇\n" +
-				"∈∉∊     ∀∁∂∃ ∄ ∅∆∇     ∈∉∊",
-			},
-		},
-		{
-			testName:         "WrapString() test 3",
-			unwrappedStrings: []string{unwrappedString01},
-			rowLength:        30,
-			indentString:     "    ",
-			expectedWrappedStrings: []string{"" +
-				"This is   a simple       bit\n" +
-				"    of text including\n" +
-				"    non-latin Ḃ\n" +
-				"    characters Ϟ",
-			},
-		},
-		{
-			testName:         "WrapString() test 4",
-			unwrappedStrings: []string{unwrappedString01},
-			rowLength:        30,
-			useAReader:       true,
-			expectedWrappedStrings: []string{"" +
-				"This is   a simple       bit\n" +
-				"of text including non-latin Ḃ\n" +
-				"characters Ϟ",
-			},
-		},
-		{
-			testName:         "WrapString() test 5",
-			unwrappedStrings: []string{unwrappedString02},
-			rowLength:        30,
-			useAReader:       true,
-			expectedWrappedStrings: []string{"" +
-				"∀∁∂∃ ∄ ∅∆∇     ∈∉∊       ∋∌∍∎∏\n" +
-				"+-  ∀∁∂∃ ∄ ∅∆∇     ∈∉∊ ∀∁∂∃ ∄\n" +
-				"∅∆∇     ∈∉∊     ∀∁∂∃ ∄ ∅∆∇\n" +
-				"∈∉∊     ∀∁∂∃ ∄ ∅∆∇     ∈∉∊",
-			},
-		},
-		{
-			testName:         "WrapString() test 6",
+			testName:         "WrapReader() test 1",
 			unwrappedStrings: []string{unwrappedString01},
 			rowLength:        30,
 			useAReader:       true,
@@ -144,4 +182,5 @@ func TestTextWrapString(t *testing.T) {
 			t.Error(err.Error())
 		}
 	}
+
 }

@@ -10,14 +10,15 @@ import (
 
 // TextWrapper is the primary object used to wrap text.
 type TextWrapper struct {
-	builder                    strings.Builder
-	lengthOfCurrentLine        int
-	runeColumnsPerRow          int
-	newLineIndentText          []rune
-	translateLinebreaksToSpace bool
-	tabstopWidth               int
-	rowSeparatorRune           rune
-	whitespacesRuneBuffer      []rune
+	builder                        strings.Builder
+	lengthOfCurrentLine            int
+	runeColumnsPerRow              int
+	newLineIndentText              []rune
+	translateLinebreaksToSpace     bool
+	tabstopWidth                   int
+	rowSeparatorRune               rune
+	whitespacesRuneBuffer          []rune
+	numberOfRunesPerRowAfterIndent int
 }
 
 // NewTextWrapper creates a new TextWrapper.  It sets the column width (i.e., the maximum line length) to
@@ -25,14 +26,15 @@ type TextWrapper struct {
 // text to a space rune (codepoint 32), and uses a newline rune (codepoint 10) as the row separator.
 func NewTextWrapper() *TextWrapper {
 	return &TextWrapper{
-		builder:                    strings.Builder{},
-		lengthOfCurrentLine:        0,
-		runeColumnsPerRow:          80,
-		newLineIndentText:          []rune{},
-		translateLinebreaksToSpace: true,
-		tabstopWidth:               4,
-		rowSeparatorRune:           '\n',
-		whitespacesRuneBuffer:      make([]rune, 0, 10),
+		builder:                        strings.Builder{},
+		lengthOfCurrentLine:            0,
+		runeColumnsPerRow:              80,
+		newLineIndentText:              []rune{},
+		translateLinebreaksToSpace:     true,
+		tabstopWidth:                   4,
+		rowSeparatorRune:               '\n',
+		whitespacesRuneBuffer:          make([]rune, 0, 10),
+		numberOfRunesPerRowAfterIndent: 80,
 	}
 }
 
@@ -43,6 +45,9 @@ func (wrapper *TextWrapper) SetColumnWidth(columnsPerLine uint) *TextWrapper {
 	if wrapper.runeColumnsPerRow <= len(wrapper.newLineIndentText) {
 		panic("indent text length non-sensically equal to or longer than column width")
 	}
+
+	wrapper.numberOfRunesPerRowAfterIndent = int(columnsPerLine) - len(wrapper.newLineIndentText)
+
 	return wrapper
 }
 
@@ -61,6 +66,8 @@ func (wrapper *TextWrapper) SetIndentForEachCreatedRow(indentString string) *Tex
 	if wrapper.runeColumnsPerRow <= len(wrapper.newLineIndentText) {
 		panic("indent text length non-sensically equal to or longer than column width")
 	}
+
+	wrapper.numberOfRunesPerRowAfterIndent = wrapper.runeColumnsPerRow - len(indentString)
 
 	return wrapper
 }
@@ -175,9 +182,18 @@ func (wrapper *TextWrapper) parserWordIntoStringBuffer(text string) (bytesConsum
 	return bytesConsumed
 }
 
+//func (wrapper *TextWrapper)
+
 func (wrapper *TextWrapper) parseRunesFromTextIntoStringBuffer(tracker *runeWordTracker) {
 	switch remainingColumnsInCurrentRow := wrapper.runeColumnsPerRow - wrapper.lengthOfCurrentLine; {
+
+	//case ()
+
 	case remainingColumnsInCurrentRow == 0:
+
+	case remainingColumnsInCurrentRow < len(wrapper.whitespacesRuneBuffer):
+		if remainingColumnsInCurrentRow == len(wrapper.newLineIndentText) {
+		}
 
 	case remainingColumnsInCurrentRow < len(wrapper.whitespacesRuneBuffer)+len(tracker.runes):
 		wrapper.insertRowSeparatorIntoBuilderAndMoveToNextLine()
