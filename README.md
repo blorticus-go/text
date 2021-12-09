@@ -40,3 +40,47 @@ func main() {
     fmt.Print(formattedString)
 }
 ```
+
+```
+
+- Read whitespace (into buffer), then non-whitespace
+- Add first line indent option, so that each line can be squeezed uniformly
+
+for thereAreBytesRemainingInSrcString {
+    indentLine()  // sets lineoffset to start, colsRemaining = rowLength - indexLength
+    bytesConsumedForWhitespace, whitespaceRuneBuffer := readWhitespace(srcString[...])
+    byteOffsetEndForNonWhitespace := readNonwhitespace(srcString[bytesConsumedForWhitespace:])
+    insert(whitespaceRuneBuffer, srcString[bytesConsumedForWhitespace:byteOffsetEndForNonWhitespace])
+    remainingByte -= (byteOffsetEndForNonWhitespace + bytesConsumedForWhitespace)
+}
+
+sourceString string
+outputBuffer buffer
+columnsPerRow int
+lengthOfIndent int
+
+remainingColumnsInCurrentRow := columnsPerRow
+
+bytesConsumed := produceALine(sourceString, false)
+for nextByteInSourceString := bytesConsumed; nextByteInSourceString < len(sourceString); {
+    bytesConsumed := produceALine(sourceString, shouldISqueezeWhitespace)
+}
+
+func produceALine(incomingString, shouldSqueezeWhitespace) {
+    numberOfWhitespaceRunes, whitespaceHoldingBuffer, bytesConsumed := extractWhitespaceIntoHoldingBuffer(sourceString)
+    if squeezeLeadingWhitepace
+}
+
+for {
+    numberOfWhitespaceRunes, whitespaceHoldingBuffer, bytesConsumed := extractWhitespaceIntoHoldingBuffer(sourceString)
+    numberOfNonwhitespaceRunes, stringStartOffset, stringEndOffset := extractNonspaceRunes()
+
+    // need to be able set "removeLeadingNewlines"
+
+    case 1: whitespace+chars is less than remaining :: write those
+    case 2: whitespace+chars is equal to remaining :: write those then newline
+    case 3: 
+
+}
+
+```
