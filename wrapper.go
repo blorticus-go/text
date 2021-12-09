@@ -1,7 +1,10 @@
 // Package text provides methods for reading UTF-8 text handling
 package text
 
-import "io"
+import (
+	"io"
+	"strings"
+)
 
 // import (
 // 	"io"
@@ -38,19 +41,29 @@ func (wrapper *Wrapper) UsingRowWidth(numberOfColumns uint) *Wrapper {
 }
 
 func (wrapper *Wrapper) ChangeIndentStringForFirstRowTo(indent string) *Wrapper {
+	if wrapper.columnsPerRow <= uint(len(indent)) {
+		panic("RowWidth must be larger than row indent string")
+	}
+
+	wrapper.initialLineIndentString = indent
 	return wrapper
 }
 
 func (wrapper *Wrapper) UsingIndentStringForFirstRow(indent string) *Wrapper {
-	return wrapper
+	return wrapper.ChangeIndentStringForFirstRowTo(indent)
 }
 
 func (wrapper *Wrapper) ChangeIndentStringForRowsAfterTheFirstTo(indent string) *Wrapper {
+	if wrapper.columnsPerRow <= uint(len(indent)) {
+		panic("RowWidth must be larger than row indent string")
+	}
+
+	wrapper.subsequentLinesIndentString = indent
 	return wrapper
 }
 
 func (wrapper *Wrapper) UsingIndentStringForRowsAfterTheFirst(indent string) *Wrapper {
-	return wrapper
+	return wrapper.ChangeIndentStringForRowsAfterTheFirstTo(indent)
 }
 
 func (wrapper *Wrapper) WrapTextFromAReader(reader io.Reader) (wrappedText string, err error) {
@@ -84,13 +97,32 @@ func (wrapper *Wrapper) WrapStringText(unwrappedString string) (wrappedText stri
 }
 
 type IterativeWrapper struct {
+	informationalWrapper     *Wrapper
+	wrappedTextBuilder       *strings.Builder
+	currentRowCursorPosition int
 }
 
 func NewIterativeWrapper(using *Wrapper) *IterativeWrapper {
-	return &IterativeWrapper{}
+	return &IterativeWrapper{
+		informationalWrapper:     using,
+		wrappedTextBuilder:       &strings.Builder{},
+		currentRowCursorPosition: 0,
+	}
 }
 
-func (iterator *IterativeWrapper) AddText(additionalText string) error {
+func (iterator *IterativeWrapper) AddText(srcString string) error {
+	if iterator.wrappedTextBuilder.Len() == 0 {
+		iterator.insertFirstRowIndentString()
+	} else if iterator.currentRowCursorPosition == 0 {
+		iterator.insertIndentStringForRowAfterFirst()
+	}
+
+	for remainingBytesToProcess := len(srcString); remainingBytesToProcess > 0; {
+		whitespaceRuneBuffer, bytesConsumedByWhitespace := iterator.consumeContiguousWhitespaceFrom(srcString)
+		byteOffsetAtEndOfWord := iterator.consumeNextWordFrom(srcString[bytesConsumedByWhitespace:])
+		iterator.insertNextSequenceIntoBuilder()
+	}
+
 	return nil
 }
 
@@ -98,8 +130,14 @@ func (iterator *IterativeWrapper) WrappedText() string {
 	return ""
 }
 
-func (iterator *IterativeWrapper) Reset() {
+func (iterator *IterativeWrapper) insertFirstRowIndentString() {
+	iterator.wrappedTextBuilder.WriteString(iterator.informationalWrapper.initialLineIndentString)
+	iterator.currentRowCursorPosition += len(iterator.informationalWrapper.initialLineIndentString)
+}
 
+func (iterator *IterativeWrapper) insertIndentStringForRowAfterFirst() {
+	iterator.wrappedTextBuilder.WriteString(iterator.informationalWrapper.subsequentLinesIndentString)
+	iterator.currentRowCursorPosition += len(iterator.informationalWrapper.subsequentLinesIndentString)
 }
 
 // // TextWrapper is the primary object used to wrap text.
