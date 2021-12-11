@@ -4,6 +4,8 @@ package text
 import (
 	"io"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // import (
@@ -97,16 +99,20 @@ func (wrapper *Wrapper) WrapStringText(unwrappedString string) (wrappedText stri
 }
 
 type IterativeWrapper struct {
-	informationalWrapper     *Wrapper
-	wrappedTextBuilder       *strings.Builder
-	currentRowCursorPosition int
+	informationalWrapper              *Wrapper
+	wrappedTextBuilder                *strings.Builder
+	currentRowCursorPosition          int
+	whitespaceRuneBuffer              []rune
+	currentlyAtStartOfLineAfterIndent bool
 }
 
 func NewIterativeWrapper(using *Wrapper) *IterativeWrapper {
 	return &IterativeWrapper{
-		informationalWrapper:     using,
-		wrappedTextBuilder:       &strings.Builder{},
-		currentRowCursorPosition: 0,
+		informationalWrapper:              using,
+		wrappedTextBuilder:                &strings.Builder{},
+		currentRowCursorPosition:          0,
+		whitespaceRuneBuffer:              make([]rune, 0, 20),
+		currentlyAtStartOfLineAfterIndent: true,
 	}
 }
 
@@ -117,9 +123,24 @@ func (iterator *IterativeWrapper) AddText(srcString string) error {
 		iterator.insertIndentStringForRowAfterFirst()
 	}
 
-	for remainingBytesToProcess := len(srcString); remainingBytesToProcess > 0; {
-		whitespaceRuneBuffer, bytesConsumedByWhitespace := iterator.consumeContiguousWhitespaceFrom(srcString)
-		byteOffsetAtEndOfWord := iterator.consumeNextWordFrom(srcString[bytesConsumedByWhitespace:])
+	if iterator.currentlyAtStartOfLineAfterIndent {
+		if bytesConsumed := iterator.scanContiguousWhitespaceAtStartOf(srcString); bytesConsumed > 0 {
+			srcString = srcString[bytesConsumed:]
+		}
+	}
+
+	remainingBytesToProcess := len(srcString)
+	for {
+		whitespaceRuneBuffer, bytesConsumedByWhitespace := iterator.collectContiguousWhitespaceAtStartOf(srcString)
+		srcString = srcString[:bytesConsumedByWhitespace]
+
+		bytesConsumedByWord := iterator.consumeNextWordFrom(srcString)
+
+		remainingBytesToProcess -= (bytesConsumedByWhitespace + bytesConsumedByWord)
+		if remainingBytesToProcess == 0 {
+			iterator.reserveEndOfAddTextFragment(srcString[bytesConsumedByWhitespace])
+		}
+
 		iterator.insertNextSequenceIntoBuilder()
 	}
 
@@ -133,11 +154,40 @@ func (iterator *IterativeWrapper) WrappedText() string {
 func (iterator *IterativeWrapper) insertFirstRowIndentString() {
 	iterator.wrappedTextBuilder.WriteString(iterator.informationalWrapper.initialLineIndentString)
 	iterator.currentRowCursorPosition += len(iterator.informationalWrapper.initialLineIndentString)
+	iterator.currentlyAtStartOfLineAfterIndent = true
 }
 
 func (iterator *IterativeWrapper) insertIndentStringForRowAfterFirst() {
 	iterator.wrappedTextBuilder.WriteString(iterator.informationalWrapper.subsequentLinesIndentString)
 	iterator.currentRowCursorPosition += len(iterator.informationalWrapper.subsequentLinesIndentString)
+	iterator.currentlyAtStartOfLineAfterIndent = true
+}
+
+func (iterator *IterativeWrapper) scanContiguousWhitespaceAtStartOf(srcString string) (bytesConsumed int) {
+	for bytesConsumed = 0; bytesConsumed < len(srcString); {
+		if nextRune, bytesInNextRune := utf8.DecodeRuneInString(srcString[bytesConsumed:]); unicode.IsSpace(nextRune) {
+			bytesConsumed += bytesInNextRune
+		} else {
+			break
+		}
+	}
+
+	return bytesConsumed
+}
+
+func (iterator *IterativeWrapper) collectContiguousWhitespaceAtStartOf(srcString string) (whitespaceBuffer []rune, bytesFromStringForWhitespaces int) {
+	iterator.whitespaceRuneBuffer = iterator.whitespaceRuneBuffer[:0]
+
+	for bytesFromStringForWhitespaces = 0; bytesFromStringForWhitespaces < len(srcString); {
+		if nextRune, bytesInNextRune := utf8.DecodeRuneInString(srcString[bytesFromStringForWhitespaces:]); unicode.IsSpace(nextRune) {
+			bytesFromStringForWhitespaces += bytesInNextRune
+			iterator.whitespaceRuneBuffer = append(iterator.whitespaceRuneBuffer, nextRune)
+		} else {
+			break
+		}
+	}
+
+	return iterator.whitespaceRuneBuffer, bytesFromStringForWhitespaces
 }
 
 // // TextWrapper is the primary object used to wrap text.
