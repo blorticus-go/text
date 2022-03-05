@@ -39,12 +39,6 @@ func main() {
 
     fmt.Print(formattedString)
 }
-```
-
-```
-
-- Read whitespace (into buffer), then non-whitespace
-- Add first line indent option, so that each line can be squeezed uniformly
 
 for thereAreBytesRemainingInSrcString {
     indentLine()  // sets lineoffset to start, colsRemaining = rowLength - indexLength
@@ -82,15 +76,4 @@ for {
     case 3: 
 
 }
-
-20
-first indent = '  '
-subsequent indent = '  '
-
-         |         |         |         |         |         |
-012345678901234567890123456789012345678901234567890123456789
- This string set is    very very long...  with a character.
-
-  
-
 ```
