@@ -134,13 +134,10 @@ func (wrapper *Wrapper) wrapFromNibbler(nibbler nibblers.UTF8Nibbler) (wrappedTe
 	wordChunkBuffer := make([]rune, wrapper.columnsPerRow)
 	whitespaceChunkBuffer := make([]rune, wrapper.columnsPerRow)
 
-	if _, err := wrapper.nibblerMatcher.DiscardConsecutiveWhitespaceCharacters(); err != nil {
-		return wrappedTextStringOrEmptyStringBasedOnErrorOrEOF(err, &bufferOfWrappedText)
-	}
-
-	// special case where input string is only whitespace, in which case don't write initial indent
-	if _, err := wrapper.nibbler.PeekAtNextCharacter(); err != nil {
-		return wrappedTextStringOrEmptyStringBasedOnErrorOrEOF(err, &bufferOfWrappedText)
+	if atEndOfStream, err := wrapper.afterRemovingContiguousWhitespace().reachedTheEndOfTheStream(); atEndOfStream {
+		return "", nil
+	} else if err != nil {
+		return "", err
 	}
 
 	if _, err := bufferOfWrappedText.WriteString(string(wrapper.initialLineIndentString)); err != nil {
@@ -151,32 +148,36 @@ func (wrapper *Wrapper) wrapFromNibbler(nibbler nibblers.UTF8Nibbler) (wrappedTe
 	columnsRemainingInCurrentWrappedLine := numberOfColumnsInThisRowAfterIndent
 
 	numberOfRunesInLastWhitespaceChunk := 0
+	atTheStartOfALine := true
 
 	for {
 		wordRunesRead, err := wrapper.nibblerMatcher.ReadConsecutiveWordCharactersInto(wordChunkBuffer[:columnsRemainingInCurrentWrappedLine])
 		if err != nil {
-			return wrappedTextStringOrEmptyStringBasedOnErrorOrEOF(parseError, &bufferOfWrappedText)
+			return wrappedTextStringOrEmptyStringBasedOnErrorOrEOF(err, &bufferOfWrappedText)
 		}
 
 		if wordRunesRead == columnsRemainingInCurrentWrappedLine {
-			// read enough word characters to reach the end of the current wrap line
+			// if there were no whitespace chunks in this line, then this word is at least as long as an entire line
 			if numberOfRunesInLastWhitespaceChunk == 0 {
-				// if there is no preceding whitespace, then this word is at least as long as an entire wrap line
 				if _, err := bufferOfWrappedText.WriteString(string(wordChunkBuffer[:wordRunesRead])); err != nil {
 					return bufferOfWrappedText.String(), err
 				}
 
-				if _, err := bufferOfWrappedText.WriteString(wrapper.lineBreakSequence); err != nil {
+				if atEndOfStream, err := wrapper.afterRemovingContiguousWhitespace().reachedTheEndOfTheStream(); atEndOfStream {
+					return bufferOfWrappedText.String(), nil
+				} else if err != nil {
 					return bufferOfWrappedText.String(), err
 				}
 
-				if _, err := bufferOfWrappedText.WriteString(string(wrapper.subsequentLinesIndentString)); err != nil {
+				if wrapper.insertLineBreakAndIndentInto(&bufferOfWrappedText); err != nil {
 					return bufferOfWrappedText.String(), err
 				}
 
 				numberOfColumnsInThisRowAfterIndent = int(wrapper.columnsPerRow) - len(wrapper.subsequentLinesIndentString)
 				columnsRemainingInCurrentWrappedLine = numberOfColumnsInThisRowAfterIndent
+				atTheStartOfALine = true
 			} else {
+				// if we are at the end of the stream, return
 				nextUnreadRune, err := wrapper.nibbler.PeekAtNextCharacter()
 				if err == io.EOF {
 					if _, writeErr := bufferOfWrappedText.WriteString(string(wordChunkBuffer[:wordRunesRead])); writeErr != nil {
@@ -187,110 +188,138 @@ func (wrapper *Wrapper) wrapFromNibbler(nibbler nibblers.UTF8Nibbler) (wrappedTe
 					return bufferOfWrappedText.String(), err
 				}
 
+				// if next character is a space, then we have a word that ends exactly at the line wrap length end
 				if unicode.IsSpace(nextUnreadRune) {
-					wrappedTextbuffer.WriteString(wrapper.lineBreakSequence)
+					if numberOfRunesInLastWhitespaceChunk > 0 {
+						if _, err := bufferOfWrappedText.WriteString(string(whitespaceChunkBuffer[:numberOfRunesInLastWhitespaceChunk])); err != nil {
+							return bufferOfWrappedText.String(), err
+						}
+					}
 
-					if _, err := wrapper.nibblerMatcher.DiscardConsecutiveWhitespaceCharacters(); err == io.EOF {
-						return bufferOfWrappedText.String(), nil
-					} else if err != nil {
+					if _, err := bufferOfWrappedText.WriteString(string(wordChunkBuffer[:wordRunesRead])); err != nil {
 						return bufferOfWrappedText.String(), err
 					}
+
+					if err := wrapper.insertLineBreakAndIndentInto(&bufferOfWrappedText); err != nil {
+						return bufferOfWrappedText.String(), err
+					}
+
+					numberOfColumnsInThisRowAfterIndent = int(wrapper.columnsPerRow) - len(wrapper.initialLineIndentString)
+					numberOfRunesInLastWhitespaceChunk = 0
+					atTheStartOfALine = true
+				} else {
+					// word buffer only has a fragment of a word but must wrap
+					if err := wrapper.insertLineBreakAndIndentInto(&bufferOfWrappedText); err != nil {
+						return bufferOfWrappedText.String(), err
+					}
+
+					if _, err := bufferOfWrappedText.WriteString(string(wordChunkBuffer[:wordRunesRead])); err != nil {
+						return bufferOfWrappedText.String(), err
+					}
+
+					columnsRemainingInCurrentWrappedLine = int(wrapper.columnsPerRow) - len(wrapper.initialLineIndentString) - wordRunesRead
+					numberOfRunesInLastWhitespaceChunk = 0
+					atTheStartOfALine = false
 				}
 			}
 		} else {
+			if numberOfRunesInLastWhitespaceChunk > 0 {
+				if _, err := bufferOfWrappedText.WriteString(string(whitespaceChunkBuffer[:numberOfRunesInLastWhitespaceChunk])); err != nil {
+					return bufferOfWrappedText.String(), err
+				}
+			}
+
+			if _, err := bufferOfWrappedText.WriteString(string(wordChunkBuffer[:wordRunesRead])); err != nil {
+				return bufferOfWrappedText.String(), err
+			}
+
+			columnsRemainingInCurrentWrappedLine = int(wrapper.columnsPerRow) - len(wrapper.initialLineIndentString) - numberOfRunesInLastWhitespaceChunk - wordRunesRead
+			numberOfRunesInLastWhitespaceChunk = 0
+			atTheStartOfALine = false
+		}
+
+		if !atTheStartOfALine {
+			whitespaceRunesRead, err := wrapper.nibblerMatcher.ReadConsecutiveWhitespaceInto(whitespaceChunkBuffer[:columnsRemainingInCurrentWrappedLine])
+			if err != nil {
+				return bufferOfWrappedText.String(), err
+			}
+
+			// whitespace continues to end of wrappable line, so wrap and don't write accumulated whitespace
+			if whitespaceRunesRead == columnsRemainingInCurrentWrappedLine {
+				if atEndOfStream, err := wrapper.afterRemovingContiguousWhitespace().reachedTheEndOfTheStream(); atEndOfStream {
+					return bufferOfWrappedText.String(), nil
+				} else if err != nil {
+					return bufferOfWrappedText.String(), err
+				}
+
+				if err := wrapper.insertLineBreakAndIndentInto(&bufferOfWrappedText); err != nil {
+					return bufferOfWrappedText.String(), err
+				}
+
+				columnsRemainingInCurrentWrappedLine = int(wrapper.columnsPerRow) - len(wrapper.initialLineIndentString)
+				numberOfRunesInLastWhitespaceChunk = 0
+				atTheStartOfALine = true
+			} else {
+				columnsRemainingInCurrentWrappedLine -= whitespaceRunesRead
+				numberOfRunesInLastWhitespaceChunk = whitespaceRunesRead
+				atTheStartOfALine = false
+			}
+		}
+	}
+}
+
+func (wrapper *Wrapper) insertLineBreakAndIndentInto(bufferOfWrappedText *bytes.Buffer) error {
+	if _, err := bufferOfWrappedText.WriteString(wrapper.lineBreakSequence); err != nil {
+		return err
+	}
+
+	if _, err := bufferOfWrappedText.WriteString(string(wrapper.subsequentLinesIndentString)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func processingHasReachedTheEndOfTheNibblerStreamFor(nibbler nibblers.UTF8Nibbler) bool {
+	if _, err := nibbler.PeekAtNextCharacter(); err == io.EOF {
+		return true
+	}
+
+	return false
+}
+
+type intercallState struct {
+	lastCallError error
+	wrapper       *Wrapper
+}
+
+func (wrapper *Wrapper) afterRemovingContiguousWhitespace() *intercallState {
+	if _, err := wrapper.nibblerMatcher.DiscardConsecutiveWhitespaceCharacters(); err != nil {
+		return &intercallState{
+			lastCallError: err,
+			wrapper:       wrapper,
 		}
 	}
 
-	// processingState := &unwrappedTextProcessingState{
-	// 	columnsRemainingInCurrentWrappedLine:   wrapper.columnsPerRow,
-	// 	lineHoldBuffer:                         make([]rune, wrapper.columnsPerRow),
-	// 	chunkHoldBuffer:                        make([]rune, wrapper.columnsPerRow),
-	// 	errorOrEOFCollectedFromChunkProcessing: nil,
-	// }
-
-	// for {
-	// 	if wrappedText, errOrEOF := wrapper.wrapNextLine(processingState); errOrEOF == io.EOF {
-	// 		wrappedTextBuffer.WriteString(wrappedText)
-	// 		return wrappedTextBuffer.String(), nil
-	// 	} else if errOrEOF != nil {
-	// 		return wrappedTextBuffer.String(), errOrEOF
-	// 	}
-
-	// 	wrappedTextBuffer.WriteString(wrappedText)
-	// }
+	return &intercallState{
+		lastCallError: nil,
+		wrapper:       wrapper,
+	}
 }
 
-// func (wrapper *Wrapper) wrapNextLine(processingState *unwrappedTextProcessingState) (wrappedText string, errOrEOF error) {
-// 	wrapper.discardWhitespaceAtStartOfLine(processingState)
+func (s *intercallState) reachedTheEndOfTheStream() (bool, error) {
+	if s.lastCallError != nil {
+		if s.lastCallError == io.EOF {
+			return true, io.EOF
+		}
+		return false, s.lastCallError
+	}
 
-// 	processingState.emptyLineHoldBuffer()
+	if _, err := s.wrapper.nibbler.PeekAtNextCharacter(); err == io.EOF {
+		return true, io.EOF
+	} else if err != nil {
+		return false, err
+	}
 
-// 	for {
-// 		lengthOfWordChunk := wrapper.readNextWordChunkFromStream()
-// 		switch lengthOfWordChunk {
-// 		case wrapper.lengthOfAWrappedLineMinusLeadingIndent():
-// 			return processingState.lineHoldBufferWithLineSeparatorAndCollectedErrorOrEOF(wrapper.lineBreakSequence)
-
-// 			case
-// 		}
-// 		if lengthOfWordChunk == wrapper.lengthOfAWrappedLineMinusLeadingIndent() {
-// 			return string(processingState.lineHoldBuffer) + wrapper.lineBreakSequence, processingState.errorOrEOFCollectedFromChunkProcessing
-// 		}
-// 	}
-// }
-
-// for processingState.errorOrEOFCollectedFromChunkProcessing == nil {
-// 	wrappedTextToAdd := wrapper.processNextWhitespaceChunk(processingState)
-// 	wrappedTextBuffer.WriteString(wrappedTextToAdd)
-
-// 	wrappedTextToAdd = wrapper.processNextWordChunk(processingState)
-// 	wrappedTextBuffer.WriteString(wrappedTextToAdd)
-// }
-
-// if processingState.errorOrEOFCollectedFromChunkProcessing == io.EOF {
-// 	return wrappedTextBuffer.String(), nil
-// }
-
-// return wrappedTextBuffer.String(), processingState.errorOrEOFCollectedFromChunkProcessing
-
-// func (wrapper *Wrapper) processNextWhitespaceChunk(processingState *unwrappedTextProcessingState) string {
-// 	if processingState.errorOrEOFCollectedFromChunkProcessing != nil {
-// 		return ""
-// 	}
-
-// 	if nextUnprocessedChunkIsAtTheStartOfAWrappedTextLine(processingState, wrapper) {
-// 		discardWhitespaceChunk(wrapper.nibblerMatcher, processingState)
-// 		return ""
-// 	}
-
-// }
-
-// func discardWhitespaceChunk(nibblerMatcher *nibblers.UTF8NibblerMatcher, processingState *unwrappedTextProcessingState) {
-// 	if processingState.errorCollectedFromChunkProcessing != nil {
-// 		return
-// 	}
-
-// 	_, err := nibblerMatcher.DiscardConsecutiveWhitespaceCharacters()
-// 	processingState.errorCollectedFromChunkProcessing = err
-// }
-
-// n = readCharactersIntoBuffer()
-// if n >= columnsRemainingInLine
-//	 p = peekAtNextCharacter
-//	 if p is a whitespace
-//		write(n) to buffer
-//		insert line separator
-//	 else
-//     if columnsRemainingInLine == length of a row
-//		  write(n) to buffer
-//		  insert line separator
-//     else
-//		  insert line separator
-//		  write(n) to buffer
-
-// for {
-//     	textForWrappedTextBuffer, err := wrapper.continue()
-//		if err == io.EOF { return wrappedText }
-//		if err != nil    { return err }
-//		writeTextToWrappedBuffer( textForWrappedTextBuffer )
-// }
+	return false, nil
+}
