@@ -130,6 +130,7 @@ func (wrapper *Wrapper) wrapFromNibbler(nibbler nibblers.UTF8Nibbler) (wrappedTe
 	var bufferOfWrappedText bytes.Buffer
 
 	wrapper.nibblerMatcher = nibblers.NewUTF8NibblerMatcher(nibbler)
+	wrapper.nibbler = nibbler
 
 	wordChunkBuffer := make([]rune, wrapper.columnsPerRow)
 	whitespaceChunkBuffer := make([]rune, wrapper.columnsPerRow)
@@ -144,15 +145,14 @@ func (wrapper *Wrapper) wrapFromNibbler(nibbler nibblers.UTF8Nibbler) (wrappedTe
 		return "", err
 	}
 
-	numberOfColumnsInThisRowAfterIndent := int(wrapper.columnsPerRow) - len(wrapper.initialLineIndentString)
-	columnsRemainingInCurrentWrappedLine := numberOfColumnsInThisRowAfterIndent
+	columnsRemainingInCurrentWrappedLine := int(wrapper.columnsPerRow) - len(wrapper.initialLineIndentString)
 
 	numberOfRunesInLastWhitespaceChunk := 0
 	atTheStartOfALine := true
 
 	for {
 		wordRunesRead, err := wrapper.nibblerMatcher.ReadConsecutiveWordCharactersInto(wordChunkBuffer[:columnsRemainingInCurrentWrappedLine])
-		if err != nil {
+		if err == io.EOF {
 			return wrappedTextStringOrEmptyStringBasedOnErrorOrEOF(err, &bufferOfWrappedText)
 		}
 
@@ -173,8 +173,7 @@ func (wrapper *Wrapper) wrapFromNibbler(nibbler nibblers.UTF8Nibbler) (wrappedTe
 					return bufferOfWrappedText.String(), err
 				}
 
-				numberOfColumnsInThisRowAfterIndent = int(wrapper.columnsPerRow) - len(wrapper.subsequentLinesIndentString)
-				columnsRemainingInCurrentWrappedLine = numberOfColumnsInThisRowAfterIndent
+				columnsRemainingInCurrentWrappedLine = int(wrapper.columnsPerRow) - len(wrapper.subsequentLinesIndentString)
 				atTheStartOfALine = true
 			} else {
 				// if we are at the end of the stream, return
@@ -191,7 +190,7 @@ func (wrapper *Wrapper) wrapFromNibbler(nibbler nibblers.UTF8Nibbler) (wrappedTe
 				// if next character is a space, then we have a word that ends exactly at the line wrap length end
 				if unicode.IsSpace(nextUnreadRune) {
 					if numberOfRunesInLastWhitespaceChunk > 0 {
-						if _, err := bufferOfWrappedText.WriteString(string(whitespaceChunkBuffer[:numberOfRunesInLastWhitespaceChunk])); err != nil {
+						if _, err := bufferOfWrappedText.WriteString(changeAllWhitespaceToAnASCIISpace(whitespaceChunkBuffer[:numberOfRunesInLastWhitespaceChunk])); err != nil {
 							return bufferOfWrappedText.String(), err
 						}
 					}
@@ -200,11 +199,17 @@ func (wrapper *Wrapper) wrapFromNibbler(nibbler nibblers.UTF8Nibbler) (wrappedTe
 						return bufferOfWrappedText.String(), err
 					}
 
+					if atEndOfStream, err := wrapper.afterRemovingContiguousWhitespace().reachedTheEndOfTheStream(); atEndOfStream {
+						return "", nil
+					} else if err != nil {
+						return "", err
+					}
+
 					if err := wrapper.insertLineBreakAndIndentInto(&bufferOfWrappedText); err != nil {
 						return bufferOfWrappedText.String(), err
 					}
 
-					numberOfColumnsInThisRowAfterIndent = int(wrapper.columnsPerRow) - len(wrapper.initialLineIndentString)
+					columnsRemainingInCurrentWrappedLine = int(wrapper.columnsPerRow) - len(wrapper.subsequentLinesIndentString)
 					numberOfRunesInLastWhitespaceChunk = 0
 					atTheStartOfALine = true
 				} else {
@@ -217,14 +222,14 @@ func (wrapper *Wrapper) wrapFromNibbler(nibbler nibblers.UTF8Nibbler) (wrappedTe
 						return bufferOfWrappedText.String(), err
 					}
 
-					columnsRemainingInCurrentWrappedLine = int(wrapper.columnsPerRow) - len(wrapper.initialLineIndentString) - wordRunesRead
+					columnsRemainingInCurrentWrappedLine = int(wrapper.columnsPerRow) - len(wrapper.subsequentLinesIndentString) - wordRunesRead
 					numberOfRunesInLastWhitespaceChunk = 0
 					atTheStartOfALine = false
 				}
 			}
 		} else {
 			if numberOfRunesInLastWhitespaceChunk > 0 {
-				if _, err := bufferOfWrappedText.WriteString(string(whitespaceChunkBuffer[:numberOfRunesInLastWhitespaceChunk])); err != nil {
+				if _, err := bufferOfWrappedText.WriteString(changeAllWhitespaceToAnASCIISpace(whitespaceChunkBuffer[:numberOfRunesInLastWhitespaceChunk])); err != nil {
 					return bufferOfWrappedText.String(), err
 				}
 			}
@@ -233,7 +238,7 @@ func (wrapper *Wrapper) wrapFromNibbler(nibbler nibblers.UTF8Nibbler) (wrappedTe
 				return bufferOfWrappedText.String(), err
 			}
 
-			columnsRemainingInCurrentWrappedLine = int(wrapper.columnsPerRow) - len(wrapper.initialLineIndentString) - numberOfRunesInLastWhitespaceChunk - wordRunesRead
+			columnsRemainingInCurrentWrappedLine -= wordRunesRead
 			numberOfRunesInLastWhitespaceChunk = 0
 			atTheStartOfALine = false
 		}
@@ -241,7 +246,7 @@ func (wrapper *Wrapper) wrapFromNibbler(nibbler nibblers.UTF8Nibbler) (wrappedTe
 		if !atTheStartOfALine {
 			whitespaceRunesRead, err := wrapper.nibblerMatcher.ReadConsecutiveWhitespaceInto(whitespaceChunkBuffer[:columnsRemainingInCurrentWrappedLine])
 			if err != nil {
-				return bufferOfWrappedText.String(), err
+				return wrappedTextStringOrEmptyStringBasedOnErrorOrEOF(err, &bufferOfWrappedText)
 			}
 
 			// whitespace continues to end of wrappable line, so wrap and don't write accumulated whitespace
@@ -256,7 +261,7 @@ func (wrapper *Wrapper) wrapFromNibbler(nibbler nibblers.UTF8Nibbler) (wrappedTe
 					return bufferOfWrappedText.String(), err
 				}
 
-				columnsRemainingInCurrentWrappedLine = int(wrapper.columnsPerRow) - len(wrapper.initialLineIndentString)
+				columnsRemainingInCurrentWrappedLine = int(wrapper.columnsPerRow) - len(wrapper.subsequentLinesIndentString)
 				numberOfRunesInLastWhitespaceChunk = 0
 				atTheStartOfALine = true
 			} else {
@@ -266,6 +271,14 @@ func (wrapper *Wrapper) wrapFromNibbler(nibbler nibblers.UTF8Nibbler) (wrappedTe
 			}
 		}
 	}
+}
+
+func changeAllWhitespaceToAnASCIISpace(whitespaceRunes []rune) string {
+	for i := range whitespaceRunes {
+		whitespaceRunes[i] = ' '
+	}
+
+	return string(whitespaceRunes)
 }
 
 func (wrapper *Wrapper) insertLineBreakAndIndentInto(bufferOfWrappedText *bytes.Buffer) error {
