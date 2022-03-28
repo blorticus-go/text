@@ -111,6 +111,25 @@ func (wrapper *Wrapper) WrapStringText(unwrappedString string) (wrappedText stri
 	return wrapper.wrapFromNibbler(nibbler)
 }
 
+// MustWrapStringText is the same as WrapStringText but panics if an error occurs
+func (wrapper *Wrapper) MustWrapStringText(unwrappedString string) (wrappedText string) {
+	wrappedText, err := wrapper.WrapStringText(unwrappedString)
+	if err != nil {
+		panic(err)
+	}
+
+	return wrappedText
+}
+
+// MustWrapUTF8TextFromAReader is the same as WrapUTF8TextFromAReader but panics if an error occurs
+func (wrapper *Wrapper) MustWrapUTF8TextFromAReader(reader io.Reader) (wrappedText string) {
+	wrappedText, err := wrapper.WrapUTF8TextFromAReader(reader)
+	if err != nil {
+		panic(err)
+	}
+	return wrappedText
+}
+
 type unwrappedTextProcessingState struct {
 	columnsRemainingInCurrentWrappedLine   uint
 	lineHoldBuffer                         []rune
