@@ -1,6 +1,6 @@
-# textwrapper
+# text
 
-A golang module for wrapping text on word boundaries.
+A golang module for handling various text-related functions.  Currently contains only a text wrapping function set.
 
 ## Synopsis
 
