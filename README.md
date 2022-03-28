@@ -14,13 +14,13 @@ remainder on the subsequent row (or rows, if the string is long enough).
 ## Install
 
 ```bash
-go get -u github.com/blorticus-go/textwrapper
+go get -u github.com/blorticus-go/text
 ```
 
 ## Example
 
 ```go
-import "github.com/blorticus-go/textwrapper"
+import "github.com/blorticus-go/text"
 import "fmt"
 
 func panicIfError(e error) {
@@ -33,47 +33,13 @@ func main() {
     fh, err := os.Open(os.Args[1])
     panicIfError(err)
 
-    wrapper := textwrapper.NewTextWrapper().SetColumnWidth(50)
-    formattedString, err := wrapper.WrapFromReader(fh)
+    wrapper := textwrapper.NewTextWrapper().
+        UsingRowWidth(50).
+        UsingIndentStringForRowsAfterTheFirst("   ")
+
+    formattedString, err := wrapper.WrapUTF8TextFromAReader(fh)
     panicIfError(err)
 
     fmt.Print(formattedString)
-}
-
-for thereAreBytesRemainingInSrcString {
-    indentLine()  // sets lineoffset to start, colsRemaining = rowLength - indexLength
-    bytesConsumedForWhitespace, whitespaceRuneBuffer := readWhitespace(srcString[...])
-    byteOffsetEndForNonWhitespace := readNonwhitespace(srcString[bytesConsumedForWhitespace:])
-    insert(whitespaceRuneBuffer, srcString[bytesConsumedForWhitespace:byteOffsetEndForNonWhitespace])
-    remainingByte -= (byteOffsetEndForNonWhitespace + bytesConsumedForWhitespace)
-}
-
-sourceString string
-outputBuffer buffer
-columnsPerRow int
-lengthOfIndent int
-
-remainingColumnsInCurrentRow := columnsPerRow
-
-bytesConsumed := produceALine(sourceString, false)
-for nextByteInSourceString := bytesConsumed; nextByteInSourceString < len(sourceString); {
-    bytesConsumed := produceALine(sourceString, shouldISqueezeWhitespace)
-}
-
-func produceALine(incomingString, shouldSqueezeWhitespace) {
-    numberOfWhitespaceRunes, whitespaceHoldingBuffer, bytesConsumed := extractWhitespaceIntoHoldingBuffer(sourceString)
-    if squeezeLeadingWhitepace
-}
-
-for {
-    numberOfWhitespaceRunes, whitespaceHoldingBuffer, bytesConsumed := extractWhitespaceIntoHoldingBuffer(sourceString)
-    numberOfNonwhitespaceRunes, stringStartOffset, stringEndOffset := extractNonspaceRunes()
-
-    // need to be able set "removeLeadingNewlines"
-
-    case 1: whitespace+chars is less than remaining :: write those
-    case 2: whitespace+chars is equal to remaining :: write those then newline
-    case 3: 
-
 }
 ```
