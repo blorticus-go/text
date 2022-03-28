@@ -71,6 +71,10 @@ func (testCase *WrapStringTestCase) RunTest() error {
 var unwrappedString01 string = "This is   a simple \t\n bit of text including non-latin Ḃ\t   \n characters Ϟ"
 var unwrappedString02 string = "∀∁∂∃ ∄ ∅∆∇\t ∈∉∊  \r    ∋∌∍∎∏ +   -∀∁∂∃ ∄ ∅∆∇\t ∈∉∊ ∀∁∂∃ ∄ ∅∆∇\t ∈∉∊     ∀∁∂∃ ∄ ∅∆∇\t ∈∉∊ \t∀∁∂∃ ∄ ∅∆∇\t ∈∉∊ "
 var unwrappedString03 string = "This is a string 123456789012345678901234567890 and then ∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃∀∁∂∃ <-- that \t string is 42 characters long."
+var unwrappedString04 string = "thisstringhasnospacesinitatallandexceeds-∂∃∀∁∂-thelengthofthecolumnssetupsoitshould,:;∂∃∀∁∂'[\"\\bebrokenrightathecolumnlength"
+var emptyUnwrappedString01 string = ""
+var whitespaceOnlyUnwrappedString01 string = "\t  \n\r \r    "
+var whitespaceOnlyUnwrappedString02 string = "  \n\r \r                    \t\t\r\n                    \r\r        \t"
 
 func wrapTestSet(useReaderRatherThanString bool) (failedTests []error) {
 	testNamePreamble := "WrapStringText()"
@@ -160,6 +164,75 @@ func wrapTestSet(useReaderRatherThanString bool) (failedTests []error) {
 					"  ∋∌∍∎∏ +   -∀∁∂∃ ∄ ∅∆∇  ∈∉∊\n" +
 					"  ∀∁∂∃ ∄ ∅∆∇  ∈∉∊     ∀∁∂∃ ∄\n" +
 					"  ∅∆∇  ∈∉∊  ∀∁∂∃ ∄ ∅∆∇  ∈∉∊",
+			},
+		},
+		{
+			testName:         fmt.Sprintf("%s test 7", testNamePreamble),
+			unwrappedStrings: []string{emptyUnwrappedString01},
+			rowLength:        30,
+			useAReader:       useReaderRatherThanString,
+			expectedWrappedStrings: []string{"" +
+				"",
+			},
+		},
+		{
+			testName:                   fmt.Sprintf("%s test 8", testNamePreamble),
+			unwrappedStrings:           []string{emptyUnwrappedString01},
+			rowLength:                  30,
+			firstLineIndentString:      "----",
+			subsequentLineIndentString: "  ",
+			useAReader:                 useReaderRatherThanString,
+			expectedWrappedStrings: []string{"" +
+				"",
+			},
+		},
+		{
+			testName:         fmt.Sprintf("%s test 9", testNamePreamble),
+			unwrappedStrings: []string{whitespaceOnlyUnwrappedString01, whitespaceOnlyUnwrappedString02},
+			rowLength:        30,
+			useAReader:       useReaderRatherThanString,
+			expectedWrappedStrings: []string{"" +
+				"",
+				"",
+			},
+		},
+		{
+			testName:                   fmt.Sprintf("%s test 10", testNamePreamble),
+			unwrappedStrings:           []string{whitespaceOnlyUnwrappedString01, whitespaceOnlyUnwrappedString02},
+			rowLength:                  30,
+			firstLineIndentString:      "----",
+			subsequentLineIndentString: "  ",
+			useAReader:                 useReaderRatherThanString,
+			expectedWrappedStrings: []string{"" +
+				"",
+				"",
+			},
+		},
+		{
+			testName:         fmt.Sprintf("%s test 11", testNamePreamble),
+			unwrappedStrings: []string{unwrappedString04},
+			rowLength:        30,
+			useAReader:       useReaderRatherThanString,
+			expectedWrappedStrings: []string{"" +
+				"thisstringhasnospacesinitatall\n" +
+				"andexceeds-∂∃∀∁∂-thelengthofth\n" +
+				"ecolumnssetupsoitshould,:;∂∃∀∁\n" +
+				"∂'[\"\\bebrokenrightathecolumnle\n" +
+				"ngth",
+			},
+		},
+		{
+			testName:                   fmt.Sprintf("%s test 12", testNamePreamble),
+			unwrappedStrings:           []string{unwrappedString04},
+			rowLength:                  30,
+			useAReader:                 useReaderRatherThanString,
+			subsequentLineIndentString: "  ",
+			expectedWrappedStrings: []string{"" +
+				"thisstringhasnospacesinitatall\n" +
+				"  andexceeds-∂∃∀∁∂-thelengthof\n" +
+				"  thecolumnssetupsoitshould,:;\n" +
+				"  ∂∃∀∁∂'[\"\\bebrokenrightatheco\n" +
+				"  lumnlength",
 			},
 		},
 	}
