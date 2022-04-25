@@ -1,3 +1,4 @@
 github.com/blorticus-go/nibblers v0.6.1 h1:8gqSbfRSbPW/lkZ+ynRZyPFi+KQltym1DlYHn1k0v8c=
 github.com/blorticus-go/nibblers v0.6.1/go.mod h1:KFgg5s5+fGwUfrtcK5ck9yEmw8QGdPvq7ZglQGLuJHs=
+github.com/blorticus/go-test-mocks v0.3.0 h1:a8TmQA/4HAvWbKK/rl0ok7a7ySXg2cvfmy+lsscwe0g=
 github.com/blorticus/go-test-mocks v0.3.0/go.mod h1:6V+HWw0m9zlRZQ+KzSGJmUe7fLp8UAxMh1adnaMzszM=
